@@ -198,6 +198,11 @@ details.dps[open] summary::before{content:"▾ "}
 .dev-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)}
 .dev-row:last-child{border-bottom:0}
 .dev-row .sub{white-space:normal}
+details.off summary{cursor:pointer;list-style:none}
+details.off summary::-webkit-details-marker{display:none}
+details.off summary::before{content:"▸ "}
+details.off[open] summary::before{content:"▾ "}
+details.off[open]{gap:0}
 
 .empty{text-align:center;padding:26px 10px;color:var(--muted)}
 .empty h2{font:800 22px/1.1 var(--f-display);text-transform:uppercase;letter-spacing:.05em;color:var(--ink);margin:0 0 8px}
@@ -421,7 +426,12 @@ var NAMES = {
   countdown_1:'Wyłącz za', countdown:'Wyłącz za', cur_power:'Moc', cur_voltage:'Napięcie', cur_current:'Prąd', add_ele:'Zużycie',
   relay_status:'Po zaniku prądu', light_mode:'Podświetlenie', child_lock:'Blokada rodzicielska', doorcontact_state:'Czujnik bramy',
   scene_data:'Scena', scene_data_v2:'Scena', music_data:'Muzyka', control_data:'Sterowanie', countdown_left:'Pozostało',
-  door_control_1:'Brama', tr_timecon:'Czas ruchu bramy', overload_alarm:'Alarm przeciążenia'
+  door_control_1:'Brama', tr_timecon:'Czas ruchu bramy', overload_alarm:'Alarm przeciążenia',
+  voltage_a:'Napięcie', current_a:'Prąd', power_a:'Moc', energy_forword_a:'Energia pobrana', energy_reserse_a:'Energia oddana',
+  energy_reverse_a:'Energia oddana', forward_energy_total:'Energia pobrana', reverse_energy_total:'Energia oddana',
+  total_forward_energy:'Energia pobrana', power_factor:'Wsp. mocy', power_factor_a:'Wsp. mocy', freq:'Częstotliwość',
+  temp_current:'Temperatura', leakage_current:'Prąd upływu', door_state_1:'Stan bramy', countdown_alarm:'Alarm otwartej bramy',
+  switch_alarm_sound:'Dźwięk alarmu', switch_alarm_light:'Światło alarmu'
 };
 var ENUM_NAMES = {power_off:'wyłączone', power_on:'włączone', last:'jak przed zanikiem', memory:'jak przed zanikiem', off:'wyłączone', on:'włączone',
   white:'biały', colour:'kolor', scene:'scena', music:'muzyka', relay:'jak włącznik', pos:'pokaż położenie', none:'brak', open:'otwórz', close:'zamknij', stop:'stop'};
@@ -503,7 +513,8 @@ function switchDps(dev){
   return out;
 }
 function meterDps(dev){
-  var r = {power: dpByCode(dev, ['cur_power']), voltage: dpByCode(dev, ['cur_voltage']), current: dpByCode(dev, ['cur_current']), energy: dpByCode(dev, ['add_ele'])};
+  var r = {power: dpByCode(dev, ['cur_power','power_a','total_power']), voltage: dpByCode(dev, ['cur_voltage','voltage_a']),
+    current: dpByCode(dev, ['cur_current','current_a']), energy: dpByCode(dev, ['add_ele','energy_forword_a','forward_energy_total','total_forward_energy'])};
   if (!Object.keys(mapping(dev)).length) {
     var d = L(dev.id).dps;
     if (typeof d['19'] === 'number') r = {power:'19', voltage:'20', current:'18', energy:'17' in d ? '17' : null};
@@ -593,7 +604,7 @@ function setDps(dev, dps){
     return r;
   });
 }
-function visibleDevices(){ return devices.filter(function(d){ return !d.hidden && !d.sub; }); }
+function visibleDevices(){ return devices.filter(function(d){ return !d.hidden && localOk(d); }); }
 var refreshing = false;
 function refreshAll(){
   readNet();
@@ -615,21 +626,50 @@ var ICONS = {
 var PWR = '<svg viewBox="0 0 24 24"><path d="M12 3v8"/><path d="M6.3 7.5a8 8 0 1 0 11.4 0"/></svg>';
 var GROUPS = [['garage','Brama'],['light','Oświetlenie'],['socket','Gniazda i włączniki'],['other','Inne']];
 
+/* kategorie, które zwykle nie mają sterowania przez sieć lokalną (zasilane z baterii, Bluetooth) */
+var NO_LAN = {dcb:'akumulator – zwykle Bluetooth, bez sterowania lokalnego', wsdcg:'czujnik na baterii – śpi, bez sterowania lokalnego',
+  mcs:'czujnik na baterii – śpi, bez sterowania lokalnego', pir:'czujnik ruchu na baterii – bez sterowania lokalnego',
+  ywbj:'czujnik dymu na baterii – bez sterowania lokalnego', sj:'czujnik zalania na baterii – bez sterowania lokalnego',
+  ldcg:'czujnik na baterii – bez sterowania lokalnego', rqbj:'czujnik gazu – zwykle bez sterowania lokalnego'};
+function localOk(d){ return !d.sub && !!d.ip; }
+function whyNot(d){
+  if (d.sub) return 'Zigbee przez bramkę – jeszcze nieobsługiwane';
+  if (d.online === false) return 'offline w chmurze Tuya – wyłączone albo poza zasięgiem Wi-Fi';
+  if (NO_LAN[d.category]) return NO_LAN[d.category];
+  return 'nie znaleziono w sieci – szukaj ponownie albo wpisz adres IP';
+}
 function render(){
   var sec = $('sections');
   var vis = devices.filter(function(d){ return !d.hidden; });
+  var ok = vis.filter(localOk), off = vis.filter(function(d){ return !localOk(d); });
   $('empty').hidden = devices.length > 0;
   var html = '';
   GROUPS.forEach(function(g){
-    var list = vis.filter(function(d){ return (d.sub ? 'other' : kindOf(d)) === g[0]; });
+    var list = ok.filter(function(d){ return kindOf(d) === g[0]; });
     if (!list.length) return;
     html += '<section><h2 class="label">' + g[1] + '</h2><div class="list">';
     list.forEach(function(d){ html += '<div class="card" id="card-' + esc(d.id) + '" data-id="' + esc(d.id) + '"></div>'; });
     html += '</div></section>';
   });
+  if (off.length) {
+    // online w chmurze najpierw – to te, które da się jeszcze znaleźć
+    off.sort(function(a, b){ return (a.online === false) - (b.online === false); });
+    html += '<details class="panel off"' + (offOpen ? ' open' : '') + ' id="offBox"><summary class="label" style="margin:0">Niedostępne lokalnie (' + off.length + ')</summary>' +
+      off.map(function(d){
+        return '<div class="dev-row" data-edit="' + esc(d.id) + '"><div><div class="name">' + esc(d.name) + '</div><div class="sub">' + esc(whyNot(d)) + '</div></div>' +
+          '<button class="btn small" data-edit="' + esc(d.id) + '">Ustaw</button></div>';
+      }).join('') +
+      '<div class="actions" style="margin-top:8px"><button class="btn small" id="offScan">Szukaj w sieci</button></div></details>';
+  }
   sec.innerHTML = html;
-  vis.forEach(renderCard);
+  ok.forEach(renderCard);
 }
+var offOpen = false;
+$('sections').addEventListener('toggle', function(e){ if (e.target.id === 'offBox') offOpen = e.target.open; }, true);
+$('sections').addEventListener('click', function(e){
+  if (e.target.closest('#offScan')) { scan(false).then(function(){ toast($('scanMsg').textContent || 'Gotowe'); }); return; }
+  var b = e.target.closest('[data-edit]'); if (b && e.target.closest('#offBox')) openEditor(b.getAttribute('data-edit'));
+});
 
 function subtitle(dev, kind){
   var s = L(dev.id);
@@ -750,8 +790,18 @@ function socketBody(dev){
   var c = m.current ? scaled(dev, m.current, 0) : null, e = m.energy ? scaled(dev, m.energy, 3) : null;
   if (p != null) parts.push(['Moc', num(p, 1) + ' W']);
   if (v != null) parts.push(['Napięcie', num(v, 1) + ' V']);
-  if (c != null) parts.push(['Prąd', num(c / 1000, 2) + ' A']);
+  if (c != null) parts.push(['Prąd', num(vals(spec(dev, m.current)).unit === 'A' ? c : c / 1000, 2) + ' A']);
   if (e != null) parts.push(['Zużycie', num(e, 2) + ' kWh']);
+  var used = [m.power, m.voltage, m.current, m.energy], mp = mapping(dev);
+  Object.keys(mp).forEach(function(dp){
+    var sp = mp[dp], vv = vals(sp), raw = d[dp];
+    if (used.indexOf(dp) >= 0 || isWritable(sp) || !/^(integer|value)$/i.test(sp.type || '') || typeof raw !== 'number') return;
+    var unit = String(vv.unit || '').replace('kW·h', 'kWh').replace('kw·h', 'kWh');
+    if (!/^(W|kW|V|A|mA|kWh|Hz|°C|var|VA|%)$/.test(unit) || parts.length >= 9) return;
+    var val = raw / Math.pow(10, vv.scale || 0);
+    if (unit === 'mA') { val = val / 1000; unit = 'A'; }
+    parts.push([NAMES[sp.code] || sp.code.replace(/_/g, ' '), num(val, 2) + ' ' + unit]);
+  });
   if (parts.length) h += '<div class="meters">' + parts.map(function(x){ return '<div class="meter"><span>' + x[0] + '</span><b>' + x[1] + '</b></div>'; }).join('') + '</div>';
   return h;
 }
@@ -996,6 +1046,7 @@ function mergeDevices(list, from){
       if (n.ip && /^\d+\.\d+\.\d+\.\d+$/.test(n.ip) && from !== 'cloud') ex.ip = n.ip;
       if (n.version && from !== 'cloud') ex.version = String(n.version);
       if (typeof n.sub === 'boolean') ex.sub = n.sub;
+      if (typeof n.online === 'boolean') ex.online = n.online;
       updated++;
     } else {
       devices.push({
@@ -1003,7 +1054,8 @@ function mergeDevices(list, from){
         version: (from !== 'cloud' && n.version) ? String(n.version) : 'auto',
         category:n.category || '', productId:n.productId || n.product_id || '', productName:n.productName || n.product_name || '',
         model:n.model || '', sub:!!n.sub, mapping:mapping || {}, kind:n.kind || 'auto', hidden:!!n.hidden,
-        garageMode:n.garageMode || 'two', garageInvert:!!n.garageInvert, customName:!!n.customName
+        garageMode:n.garageMode || 'two', garageInvert:!!n.garageInvert, customName:!!n.customName,
+        online: typeof n.online === 'boolean' ? n.online : null
       });
       added++;
     }
@@ -1017,9 +1069,9 @@ function scan(silent){
   readNet();
   var el = $('scanMsg');
   if (!net.wifi) { if (!silent) msg(el, 'Wyszukiwanie działa tylko w domowym Wi-Fi.', true); return Promise.resolve(); }
-  if (!silent) msg(el, 'Szukam przez 8 sekund…');
+  if (!silent) msg(el, 'Szukam przez 12 sekund…');
   $('scanBtn').disabled = true;
-  return call('scan', 8000).then(function(r){
+  return call('scan', 12000).then(function(r){
     $('scanBtn').disabled = false;
     if (!r.ok) { msg(el, r.error || 'Błąd wyszukiwania', true); return; }
     var known = 0, other = 0;
@@ -1031,7 +1083,7 @@ function scan(silent){
       if (f.version && d.versionFrom !== 'manual') { if (d.version !== f.version) d.device22 = false; d.version = f.version; d.versionFrom = 'scan'; }
     });
     saveDevices();
-    var wifiDevs = devices.filter(function(d){ return !d.sub; }).length;
+    var wifiDevs = devices.filter(function(d){ return !d.sub && d.online !== false && !NO_LAN[d.category]; }).length;
     msg(el, 'Znaleziono ' + known + ' z ' + wifiDevs + ' urządzeń' + (other ? ' oraz ' + other + ' innych urządzeń Tuya bez klucza' : '') + '.' +
       (known < wifiDevs ? ' Brakującym wpisz adres IP ręcznie (sprawdzisz go w routerze) i ustaw w routerze stały adres (rezerwacja DHCP).' : ''));
     renderDevList(); render(); refreshAll();
@@ -1125,7 +1177,8 @@ $('backupBtn').onclick = function(){
 };
 $('diagBtn').onclick = function(){
   var info = {app:(NATIVE && NATIVE.version) ? NATIVE.version() : 'web', net:net, devices:devices.map(function(d){
-    var s = L(d.id); return {name:d.name, id:d.id.slice(0, 6) + '…', ip:d.ip, version:d.version, device22:!!d.device22, category:d.category, kind:kindOf(d), err:s.kind, dps:s.dps};
+    var s = L(d.id); return {name:d.name, id:d.id.slice(0, 6) + '…', ip:d.ip, version:d.version, device22:!!d.device22, category:d.category, kind:kindOf(d),
+      online:d.online, sub:!!d.sub, codes:Object.keys(d.mapping || {}).map(function(k){ return k + ':' + (d.mapping[k].code || ''); }).join(' '), err:s.kind, dps:s.dps};
   }), log:diag.slice(-80)};
   var t = JSON.stringify(info, null, 1);
   if (NATIVE && NATIVE.share) NATIVE.share(t); else { try{ navigator.clipboard.writeText(t); toast('Skopiowano'); }catch(e){} }

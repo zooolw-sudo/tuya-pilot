@@ -27,6 +27,14 @@
     '1': {code:'switch_1', type:'Boolean', values:{}, writable:true},
     '3': {code:'doorcontact_state', type:'Boolean', values:{}, writable:false}
   };
+  var METER = {
+    '16': {code:'switch', type:'Boolean', values:{}, writable:true},
+    '101': {code:'voltage_a', type:'Integer', values:{unit:'V', min:0, max:3000, scale:1}, writable:false},
+    '102': {code:'current_a', type:'Integer', values:{unit:'mA', min:0, max:60000, scale:0}, writable:false},
+    '103': {code:'power_a', type:'Integer', values:{unit:'W', min:0, max:99999, scale:0}, writable:false},
+    '105': {code:'energy_forword_a', type:'Integer', values:{unit:'kW·h', min:0, max:99999999, scale:2}, writable:false},
+    '110': {code:'temp_current', type:'Integer', values:{unit:'°C', min:-200, max:1000, scale:1}, writable:false}
+  };
   var devs = [
     {id:'bfgarage0000000001', name:'Brama garażowa', key:'0123456789abcdef', ip:'192.168.1.41', version:'3.3', category:'ckmkzq', mapping:GARAGE, kind:'auto', garageMode:'two'},
     {id:'bflamp00000000001', name:'Lampa salon', key:'0123456789abcdef', ip:'192.168.1.42', version:'3.5', category:'dj', mapping:V2, kind:'auto'},
@@ -34,7 +42,11 @@
     {id:'bfplug00000000001', name:'Pralka', key:'0123456789abcdef', ip:'192.168.1.44', version:'3.3', category:'cz', mapping:PLUG, kind:'auto'},
     {id:'bfplug00000000002', name:'Lampka przy łóżku', key:'0123456789abcdef', ip:'192.168.1.45', version:'3.3', category:'cz', mapping:PLUG, kind:'auto'},
     {id:'bfstrip0000000001', name:'Listwa biurko', key:'0123456789abcdef', ip:'192.168.1.46', version:'3.4', category:'pc', mapping:STRIP, kind:'auto'},
-    {id:'bfplug00000000003', name:'Gniazdo wędzarnia', key:'0123456789abcdef', ip:'192.168.1.47', version:'3.3', category:'cz', mapping:PLUG, kind:'auto'}
+    {id:'bfplug00000000003', name:'Gniazdo wędzarnia', key:'0123456789abcdef', ip:'192.168.1.47', version:'3.3', category:'cz', mapping:PLUG, kind:'auto'},
+    {id:'bfmeter0000000001', name:'Licznik PC', key:'0123456789abcdef', ip:'192.168.1.48', version:'3.5', category:'zndb', mapping:METER, kind:'auto'},
+    {id:'bfirr000000000001', name:'Nawodnienie ogród', key:'0123456789abcdef', ip:'', version:'auto', category:'tdq', mapping:{}, kind:'auto', online:false},
+    {id:'bfbat000000000001', name:'Akumulator 20 V', key:'0123456789abcdef', ip:'', version:'auto', category:'dcb', mapping:{}, kind:'auto', online:true},
+    {id:'bfsw0000000000001', name:'Światło garaż', key:'0123456789abcdef', ip:'', version:'auto', category:'tdq', mapping:{}, kind:'auto', online:true}
   ];
   var state = {
     bfgarage0000000001: {'1':false, '3':false},
@@ -42,7 +54,8 @@
     bfled000000000001: {'20':true, '21':'colour', '22':1000, '23':0, '24':'00f003e80320'},
     bfplug00000000001: {'1':true, '9':0, '17':12345, '18':2450, '19':5320, '20':2318, '38':'last'},
     bfplug00000000002: {'1':false, '9':0, '17':230, '18':0, '19':0, '20':2321, '38':'power_off'},
-    bfstrip0000000001: {'1':true, '2':false, '3':true, '7':true}
+    bfstrip0000000001: {'1':true, '2':false, '3':true, '7':true},
+    bfmeter0000000001: {'16':true, '101':2415, '102':521, '103':240, '105':993654, '110':260}
   };
   var hash = location.hash || '';
   if (hash.indexOf('empty') < 0) mem['k_devices'] = JSON.stringify(devs);
@@ -74,7 +87,7 @@
     cloudImport: function(id, region, aid, sec){
       window.__calls.push(['cloudImport', region, aid]);
       if (sec !== 'dobry') return reply(id, {ok:false, kind:'CLOUD', error:'Chmura odrzuciła podpis: sprawdź Access ID i Access Secret oraz czy telefon ma prawidłową godzinę.'}, 300);
-      reply(id, {ok:true, data:devs.map(function(d){ return {id:d.id, name:d.name, key:d.key, category:d.category, mapping:d.mapping}; })}, 300);
+      reply(id, {ok:true, data:devs.map(function(d){ return {id:d.id, name:d.name, key:d.key, category:d.category, mapping:d.mapping, online:d.online !== false}; })}, 300);
     }
   };
 })();
