@@ -6,6 +6,26 @@
 <title>Tuya Pilot</title>
 <meta name="theme-color" content="#151c2b">
 <script>
+/* błędy skryptu pokazujemy na ekranie (z możliwością wysłania), zamiast zostawiać pustą stronę */
+(function(){
+  function show(text){
+    try{
+      var info = '';
+      try{ if (window.Tuya && Tuya.deviceInfo) info = Tuya.deviceInfo() + '\n'; }catch(e){}
+      var full = info + text;
+      var box = document.getElementById('jsErr');
+      if (!box) {
+        box = document.createElement('div'); box.id = 'jsErr';
+        box.style.cssText = 'position:fixed;left:8px;right:8px;top:8px;z-index:99;background:#c0392b;color:#fff;padding:10px 12px;border-radius:10px;font:13px/1.4 monospace;white-space:pre-wrap;max-height:45vh;overflow:auto';
+        (document.body || document.documentElement).appendChild(box);
+      }
+      box.textContent = 'Błąd aplikacji (stuknij, aby wysłać opis):\n' + full;
+      box.onclick = function(){ try{ if (window.Tuya && Tuya.share) Tuya.share(full); }catch(e){} };
+    }catch(e){}
+  }
+  window.onerror = function(msg, src, line, col, err){ show(msg + ' [' + line + ':' + col + ']' + (err && err.stack ? '\n' + err.stack : '')); };
+  window.addEventListener('unhandledrejection', function(e){ show('Promise: ' + (e.reason && (e.reason.stack || e.reason.message) || e.reason)); });
+})();
 /* motyw ustawiony przed narysowaniem strony, żeby w nocy nie błysnęło jasnym ekranem */
 (function(){
   try{

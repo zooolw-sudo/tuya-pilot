@@ -55,13 +55,38 @@ public class MainActivity extends Activity {
     private final Map<String, Object> deviceLocks = new ConcurrentHashMap<>();
     private SharedPreferences prefs;
 
-    @SuppressLint({"SetJavaScriptEnabled", "AddJavascriptInterface"})
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         prefs = getSharedPreferences("tuya", MODE_PRIVATE);
-        applyBars(isNightMode());
+        try { applyBars(isNightMode()); } catch (Throwable ignored) { }
 
+        // poprzednie uruchomienie zakończyło się awarią – pokaż jej opis zamiast znowu się zamykać
+        java.io.File crash = new java.io.File(getFilesDir(), App.CRASH_FILE);
+        if (crash.exists()) {
+            String text;
+            try {
+                text = new String(java.nio.file.Files.readAllBytes(crash.toPath()), java.nio.charset.StandardCharsets.UTF_8);
+            } catch (Exception e) {
+                text = "Nie udało się odczytać opisu: " + e;
+            }
+            showError("Aplikacja zamknęła się z błędem", text, crash);
+            return;
+        }
+        try {
+            startWeb();
+        } catch (Throwable e) {
+            App.saveCrash(this, "Uruchamianie ekranu (WebView)", e);
+            web = null;
+            showError("Nie udało się uruchomić ekranu aplikacji",
+                    App.describeDevice(this) + "\n\nNajczęstsza przyczyna: wyłączony albo nieaktualny „Android System WebView”. "
+                            + "Zaktualizuj go w Sklepie Play i uruchom aplikację ponownie.\n\n" + android.util.Log.getStackTraceString(e),
+                    new java.io.File(getFilesDir(), App.CRASH_FILE));
+        }
+    }
+
+    @SuppressLint({"SetJavaScriptEnabled", "AddJavascriptInterface"})
+    private void startWeb() {
         web = new WebView(this);
         web.setBackgroundColor(isNightMode() ? 0xFF0D121B : 0xFFE9EDF2);
         WebSettings s = web.getSettings();
@@ -77,9 +102,75 @@ public class MainActivity extends Activity {
                 openExternal(url);
                 return true;
             }
+
+            @Override
+            public boolean onRenderProcessGone(WebView view, android.webkit.RenderProcessGoneDetail detail) {
+                // proces strony padł – nie zabieraj ze sobą całej aplikacji
+                App.saveCrash(MainActivity.this, "Proces WebView zakończył się (awaria: " + detail.didCrash() + ")",
+                        new RuntimeException("onRenderProcessGone"));
+                if (web != null) {
+                    web.destroy();
+                    web = null;
+                }
+                recreate();
+                return true;
+            }
         });
         setContentView(web);
         web.loadUrl("file:///android_asset/index.html");
+    }
+
+    /** Prosty ekran z opisem błędu, bez WebView – działa nawet wtedy, gdy WebView nie działa. */
+    private void showError(String title, final String text, final java.io.File crashFile) {
+        boolean dark = isNightMode();
+        int bg = dark ? 0xFF0D121B : 0xFFE9EDF2;
+        int ink = dark ? 0xFFE7EBF2 : 0xFF131926;
+        float dp = getResources().getDisplayMetrics().density;
+        android.widget.ScrollView scroll = new android.widget.ScrollView(this);
+        scroll.setBackgroundColor(bg);
+        scroll.setFitsSystemWindows(true);
+        android.widget.LinearLayout box = new android.widget.LinearLayout(this);
+        box.setOrientation(android.widget.LinearLayout.VERTICAL);
+        int pad = (int) (18 * dp);
+        box.setPadding(pad, pad, pad, pad);
+        android.widget.TextView h = new android.widget.TextView(this);
+        h.setText(title);
+        h.setTextSize(22);
+        h.setTextColor(ink);
+        h.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+        box.addView(h);
+        android.widget.TextView info = new android.widget.TextView(this);
+        info.setText("Wyślij ten opis (przycisk niżej) – po nim od razu widać, co poprawić.");
+        info.setTextColor(ink);
+        info.setPadding(0, (int) (8 * dp), 0, (int) (8 * dp));
+        box.addView(info);
+        android.widget.Button share = new android.widget.Button(this);
+        share.setText("Udostępnij opis błędu");
+        share.setOnClickListener(v -> {
+            Intent i = new Intent(Intent.ACTION_SEND);
+            i.setType("text/plain");
+            i.putExtra(Intent.EXTRA_SUBJECT, "Tuya Pilot – błąd");
+            i.putExtra(Intent.EXTRA_TEXT, text);
+            try { startActivity(Intent.createChooser(i, "Udostępnij")); } catch (Exception ignored) { }
+        });
+        box.addView(share);
+        android.widget.Button again = new android.widget.Button(this);
+        again.setText("Uruchom aplikację ponownie");
+        again.setOnClickListener(v -> {
+            try { if (crashFile != null) crashFile.delete(); } catch (Exception ignored) { }
+            recreate();
+        });
+        box.addView(again);
+        android.widget.TextView body = new android.widget.TextView(this);
+        body.setText(text);
+        body.setTextColor(ink);
+        body.setTextSize(12);
+        body.setTypeface(android.graphics.Typeface.MONOSPACE);
+        body.setTextIsSelectable(true);
+        body.setPadding(0, (int) (12 * dp), 0, 0);
+        box.addView(body);
+        scroll.addView(box);
+        setContentView(scroll);
     }
 
     @Override
@@ -164,6 +255,10 @@ public class MainActivity extends Activity {
                 try { startActivity(Intent.createChooser(i, "Udostępnij")); } catch (Exception ignored) { }
             });
         }
+
+        /** Telefon, Android i wersja WebView – do diagnostyki. */
+        @JavascriptInterface
+        public String deviceInfo() { return App.describeDevice(MainActivity.this); }
 
         @JavascriptInterface
         public String version() {
