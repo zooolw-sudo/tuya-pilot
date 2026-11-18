@@ -1,0 +1,1146 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Tuya Pilot</title>
+<meta name="theme-color" content="#151c2b">
+<script>
+/* motyw ustawiony przed narysowaniem strony, żeby w nocy nie błysnęło jasnym ekranem */
+(function(){
+  try{
+    var raw = (window.Tuya && Tuya.load) ? Tuya.load('settings') : localStorage.getItem('tuyapilot:settings');
+    var t = raw ? (JSON.parse(raw).theme || 'auto') : 'auto';
+    if (t !== 'dark' && t !== 'light' && window.Tuya && Tuya.isNight) t = Tuya.isNight() ? 'dark' : 'light';
+    if (t === 'dark' || t === 'light') document.documentElement.setAttribute('data-theme', t);
+  }catch(e){}
+})();
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800&family=Instrument+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Wygląd jak w Radio RMF: jasny i ciemny motyw, kolor akcentu bursztynowy */
+:root{
+  --bg:#e9edf2; --panel:#fbfcfd; --ink:#131926; --muted:#566074; --line:#d3d9e2; --soft:#eef1f5;
+  --accent:#b5650b; --accent-ink:#fff; --on:#b5650b;
+  --ok:#1f8a4c; --bad:#c0392b; --warn:#a86a00;
+  --f-display:"Big Shoulders Display","Arial Narrow",Impact,sans-serif;
+  --f-body:"Instrument Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#0d121b; --panel:#151c29; --ink:#e7ebf2; --muted:#93a0b6; --line:#253044; --soft:#1b2433;
+    --accent:#f0a53a; --accent-ink:#151c29; --on:#f0a53a;
+    --ok:#3ccf7b; --bad:#ff6b5e; --warn:#f0c24a;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0d121b; --panel:#151c29; --ink:#e7ebf2; --muted:#93a0b6; --line:#253044; --soft:#1b2433;
+  --accent:#f0a53a; --accent-ink:#151c29; --on:#f0a53a;
+  --ok:#3ccf7b; --bad:#ff6b5e; --warn:#f0c24a;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{
+  background:var(--bg); color:var(--ink);
+  font:15px/1.5 var(--f-body); -webkit-font-smoothing:antialiased;
+  padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+button,input,select,textarea{font:inherit;color:inherit}
+button,summary,input,select,.card-head{-webkit-tap-highlight-color:transparent}
+button:focus,summary:focus,input[type=range]:focus{outline:none}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+[hidden]{display:none!important}
+
+.app{max-width:560px;margin:0 auto;display:grid;gap:18px;padding:18px max(16px,env(safe-area-inset-right,0px)) 40px max(16px,env(safe-area-inset-left,0px))}
+
+/* nagłówek */
+.top{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.brand{margin:0;font:800 26px/1 var(--f-display);text-transform:uppercase;letter-spacing:.05em;white-space:nowrap}
+.top-right{display:flex;align-items:center;gap:8px}
+.icon-btn{flex:none;width:40px;height:40px;border-radius:50%;border:1px solid var(--line);background:transparent;cursor:pointer;display:grid;place-items:center;padding:0}
+.icon-btn svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.icon-btn.spin svg{animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.net{font:500 11px var(--f-mono);letter-spacing:.06em;text-transform:uppercase;padding:5px 9px;border-radius:999px;border:1px solid var(--line);color:var(--muted);white-space:nowrap;display:inline-flex;align-items:center;gap:6px}
+.net i{width:7px;height:7px;border-radius:50%;background:var(--muted);display:inline-block}
+.net.home i{background:var(--ok)} .net.vpn i{background:var(--accent)} .net.away i{background:var(--bad)}
+
+.banner{border:1px solid var(--line);border-left:4px solid var(--warn);background:var(--panel);border-radius:12px;padding:12px 14px;display:grid;gap:8px}
+.banner p{margin:0}
+.banner .row{display:flex;gap:8px;flex-wrap:wrap}
+
+.label{font:500 11px var(--f-mono);text-transform:uppercase;letter-spacing:.12em;color:var(--accent);margin:0 0 8px}
+.list{display:grid;gap:10px}
+#sections{display:grid;gap:20px}
+#sections:empty{display:none}
+
+/* kafelek urządzenia */
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.card-head{display:grid;grid-template-columns:40px minmax(0,1fr) auto;gap:12px;align-items:center;padding:12px 12px 12px 14px;cursor:pointer;min-height:68px}
+.ico{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;background:var(--soft);color:var(--muted)}
+.ico svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.card.on .ico{background:var(--on);color:var(--accent-ink)}
+.name{font-weight:600;font-size:16px;line-height:1.25;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sub{font:12px var(--f-mono);color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sub.err{color:var(--bad)}
+.card.stale .name{opacity:.7}
+.pwr{width:52px;height:52px;border-radius:50%;border:1px solid var(--line);background:var(--bg);cursor:pointer;display:grid;place-items:center;padding:0;transition:background .15s}
+.pwr svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round}
+.pwr.on{background:var(--on);border-color:var(--on);color:var(--accent-ink)}
+.pwr:disabled{opacity:.4}
+.pwr.busy{animation:pulse 1s ease-in-out infinite}
+@keyframes pulse{50%{opacity:.5}}
+.card-body{padding:4px 14px 14px;display:grid;gap:14px;border-top:1px solid var(--line)}
+.card-body .err-box{color:var(--bad);font-size:14px;padding-top:10px}
+.card-body a,.banner a{color:var(--accent);font-weight:600}
+body.locked{overflow:hidden}
+
+.ctl{display:grid;gap:6px}
+.ctl-top{display:flex;justify-content:space-between;align-items:baseline;gap:10px;font-size:14px}
+.ctl-top b{font-weight:600}
+.ctl-top span{font:13px var(--f-mono);color:var(--muted)}
+input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:32px;background:transparent;margin:0}
+input[type=range]::-webkit-slider-runnable-track{height:8px;border-radius:4px;background:var(--line)}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:26px;height:26px;border-radius:50%;background:var(--panel);border:2px solid var(--accent);margin-top:-9px;box-shadow:0 1px 3px rgba(0,0,0,.25)}
+input[type=range]::-moz-range-track{height:8px;border-radius:4px;background:var(--line)}
+input[type=range]::-moz-range-thumb{width:22px;height:22px;border-radius:50%;background:var(--panel);border:2px solid var(--accent)}
+.r-temp::-webkit-slider-runnable-track{background:linear-gradient(90deg,#ffb35c,#fff4e0,#cfe3ff)!important}
+.r-hue::-webkit-slider-runnable-track{background:linear-gradient(90deg,#f00,#ff0,#0f0,#0ff,#00f,#f0f,#f00)!important}
+.seg{display:flex;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.seg button{flex:1;border:0;background:transparent;padding:9px 6px;cursor:pointer;font-size:14px}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button.sel{background:var(--accent);color:var(--accent-ink);font-weight:600}
+.switch-row{display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:15px}
+.tog{position:relative;width:52px;height:30px;border-radius:15px;border:1px solid var(--line);background:var(--line);cursor:pointer;padding:0;flex:none}
+.tog::after{content:"";position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:var(--panel);transition:left .15s}
+.tog.on{background:var(--on);border-color:var(--on)}
+.tog.on::after{left:25px}
+.meters{display:flex;gap:8px;flex-wrap:wrap}
+.meter{flex:1 1 90px;background:var(--soft);border-radius:10px;padding:8px 10px}
+.meter b{display:block;font:600 20px/1.1 var(--f-display);letter-spacing:.03em}
+.meter span{font:11px var(--f-mono);color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+
+/* brama */
+.gate-state{font:800 30px/1 var(--f-display);text-transform:uppercase;letter-spacing:.04em;margin:8px 0 0}
+.gate-state.open{color:var(--warn)} .gate-state.closed{color:var(--ok)}
+.holds{display:flex;gap:10px}
+.hold{position:relative;flex:1;height:64px;border-radius:14px;border:1px solid var(--line);background:var(--bg);cursor:pointer;overflow:hidden;font-weight:600;font-size:16px;touch-action:none;user-select:none;-webkit-user-select:none}
+.hold .fill{position:absolute;inset:0;background:var(--accent);transform:scaleX(0);transform-origin:left;opacity:.9}
+.hold.holding .fill{transform:scaleX(1);transition:transform .9s linear}
+.hold span{position:relative}
+.hold.holding span,.hold.done span{color:var(--accent-ink)}
+.hold.done .fill{transform:scaleX(1)}
+.hint{font-size:13px;color:var(--muted);margin:0}
+
+details.dps summary{cursor:pointer;font:500 12px var(--f-mono);color:var(--muted);text-transform:uppercase;letter-spacing:.08em;list-style:none}
+details.dps summary::-webkit-details-marker{display:none}
+details.dps summary::before{content:"▸ "}
+details.dps[open] summary::before{content:"▾ "}
+.dp{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line);font-size:14px}
+.dp:last-child{border-bottom:0}
+.dp small{display:block;font:11px var(--f-mono);color:var(--muted)}
+.dp select,.dp input[type=number]{max-width:150px;padding:6px 8px;border-radius:8px;border:1px solid var(--line);background:var(--bg)}
+.dp code{font:13px var(--f-mono);word-break:break-all}
+
+/* przyciski i formularze */
+.btn{border:1px solid var(--line);background:var(--panel);border-radius:10px;padding:10px 14px;cursor:pointer;font-weight:600;font-size:15px}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.danger{color:var(--bad)}
+.btn:disabled{opacity:.5}
+.btn.small{padding:7px 11px;font-size:14px}
+.field{display:grid;gap:4px}
+.field label{font-size:13px;color:var(--muted)}
+.field input,.field select,.field textarea{width:100%;padding:11px 12px;border-radius:10px;border:1px solid var(--line);background:var(--bg)}
+.field textarea{min-height:110px;font:13px var(--f-mono)}
+.chk{display:flex;gap:10px;align-items:center;font-size:15px}
+.chk input{width:20px;height:20px;accent-color:var(--accent)}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px;display:grid;gap:12px}
+.panel h3{margin:0;font-size:16px}
+.panel p{margin:0;font-size:14px;color:var(--muted)}
+.panel p b{color:var(--ink)}
+.panel a{color:var(--accent)}
+.actions{display:flex;gap:8px;flex-wrap:wrap}
+.chips{display:flex;gap:6px}
+.chip{border:1px solid var(--line);background:transparent;border-radius:999px;padding:7px 12px;cursor:pointer;font-size:14px}
+.chip.sel{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:600}
+
+/* ekran ustawień */
+.sheet{position:fixed;inset:0;background:var(--bg);overflow-y:auto;z-index:10;-webkit-overflow-scrolling:touch}
+.sheet .app{gap:14px}
+.sheet-top{display:flex;align-items:center;gap:10px}
+.sheet-top h2{margin:0;font:800 22px/1 var(--f-display);text-transform:uppercase;letter-spacing:.05em}
+.dev-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)}
+.dev-row:last-child{border-bottom:0}
+.dev-row .sub{white-space:normal}
+
+.empty{text-align:center;padding:26px 10px;color:var(--muted)}
+.empty h2{font:800 22px/1.1 var(--f-display);text-transform:uppercase;letter-spacing:.05em;color:var(--ink);margin:0 0 8px}
+
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:10px;font-size:14px;max-width:90vw;z-index:20;box-shadow:0 4px 14px rgba(0,0,0,.25)}
+.foot{font:11px var(--f-mono);color:var(--muted);text-align:center}
+</style>
+</head>
+<body>
+<div class="app" id="main">
+  <header class="top">
+    <h1 class="brand">Tuya Pilot</h1>
+    <div class="top-right">
+      <span class="net" id="net"><i></i><span id="netText">…</span></span>
+      <button class="icon-btn" id="refreshBtn" aria-label="Odśwież"><svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 4v5h-5"/></svg></button>
+      <button class="icon-btn" id="settingsBtn" aria-label="Ustawienia"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
+    </div>
+  </header>
+
+  <div class="banner" id="awayBanner" hidden>
+    <p><b>Jesteś poza domową siecią.</b> Włącz Tailscale, żeby sterować urządzeniami zdalnie.</p>
+    <div class="row"><button class="btn primary small" id="openTs">Otwórz Tailscale</button></div>
+  </div>
+
+  <div id="sections"></div>
+
+  <div class="empty" id="empty" hidden>
+    <h2>Brak urządzeń</h2>
+    <p>Na początek pobierz listę urządzeń i ich klucze z chmury Tuya. Robisz to raz, potem aplikacja steruje wszystkim lokalnie.</p>
+    <div class="actions" style="justify-content:center;margin-top:14px">
+      <button class="btn primary" data-open="cloud">Pobierz z chmury Tuya</button>
+      <button class="btn" data-open="manual">Dodaj ręcznie</button>
+    </div>
+  </div>
+
+  <div class="foot" id="foot"></div>
+</div>
+
+<!-- ustawienia -->
+<div class="sheet" id="settings" hidden>
+  <div class="app">
+    <div class="sheet-top">
+      <button class="icon-btn" data-close aria-label="Wstecz"><svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></button>
+      <h2>Ustawienia</h2>
+    </div>
+
+    <section class="panel" id="cloudPanel">
+      <h3>Klucze z chmury Tuya</h3>
+      <p>Aplikacja pobiera z chmury listę urządzeń, ich <b>klucze lokalne</b> i opis funkcji. Potem steruje wszystkim lokalnie, bez chmury.
+        Dane do projektu na platform.tuya.com: <a href="#" data-url="https://github.com/zooolw-sudo/tuya-pilot#1-klucze-z-chmury-tuya">instrukcja krok po kroku</a>.</p>
+      <div class="field"><label for="cRegion">Centrum danych</label>
+        <select id="cRegion">
+          <option value="eu">Europa Środkowa (zwykle dla Polski)</option>
+          <option value="weaz">Europa Zachodnia</option>
+          <option value="us">USA Zachód</option>
+          <option value="ueaz">USA Wschód</option>
+          <option value="in">Indie</option>
+          <option value="sg">Singapur</option>
+          <option value="cn">Chiny</option>
+        </select></div>
+      <div class="field"><label for="cId">Access ID / Client ID</label><input id="cId" autocomplete="off" autocapitalize="off" spellcheck="false"></div>
+      <div class="field"><label for="cSecret">Access Secret / Client Secret</label><input id="cSecret" type="password" autocomplete="off" autocapitalize="off" spellcheck="false"></div>
+      <div class="actions"><button class="btn primary" id="cImport">Pobierz urządzenia i klucze</button></div>
+      <p id="cMsg" hidden></p>
+    </section>
+
+    <section class="panel">
+      <h3>Szukaj w sieci</h3>
+      <p>Uzupełnia adresy IP i wersje protokołu. Działa tylko w domowym Wi-Fi (urządzenia ogłaszają się w sieci lokalnej).</p>
+      <div class="actions"><button class="btn" id="scanBtn">Szukaj urządzeń</button></div>
+      <p id="scanMsg" hidden></p>
+    </section>
+
+    <section class="panel">
+      <h3>Urządzenia</h3>
+      <div id="devList"></div>
+      <div class="actions"><button class="btn small" data-open="manual">Dodaj ręcznie</button><button class="btn small" data-open="paste">Wklej devices.json</button></div>
+    </section>
+
+    <section class="panel">
+      <h3>Dostęp spoza domu</h3>
+      <p>Poza domem aplikacja łączy się z urządzeniami przez VPN <b>Tailscale</b>. W domu musi działać jedno urządzenie z Tailscale jako „subnet router” (np. Raspberry Pi). Opis: <a href="#" data-url="https://github.com/zooolw-sudo/tuya-pilot#3-dostęp-spoza-domu-tailscale">konfiguracja Tailscale</a>.</p>
+      <p id="netDetail"></p>
+      <div class="actions"><button class="btn" id="openTs2">Otwórz Tailscale</button></div>
+    </section>
+
+    <section class="panel">
+      <h3>Wygląd</h3>
+      <div class="chips" id="themeChips">
+        <button class="chip" data-t="auto">Auto</button><button class="chip" data-t="light">Jasny</button><button class="chip" data-t="dark">Ciemny</button>
+      </div>
+      <label class="chk"><input type="checkbox" id="autoRefresh"> Odświeżaj stan co 20 s, gdy aplikacja jest otwarta</label>
+    </section>
+
+    <section class="panel">
+      <h3>Kopia i diagnostyka</h3>
+      <p>Kopia zawiera klucze lokalne – nie udostępniaj jej publicznie.</p>
+      <div class="actions">
+        <button class="btn small" id="backupBtn">Udostępnij kopię</button>
+        <button class="btn small" id="diagBtn">Udostępnij diagnostykę</button>
+        <button class="btn small danger" id="wipeBtn">Usuń wszystkie urządzenia</button>
+      </div>
+    </section>
+    <div class="foot" id="ver"></div>
+  </div>
+</div>
+
+<!-- edycja urządzenia -->
+<div class="sheet" id="editor" hidden>
+  <div class="app">
+    <div class="sheet-top">
+      <button class="icon-btn" data-close aria-label="Wstecz"><svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></button>
+      <h2 id="edTitle">Urządzenie</h2>
+    </div>
+    <section class="panel">
+      <div class="field"><label for="edName">Nazwa</label><input id="edName"></div>
+      <div class="field"><label for="edKind">Rodzaj</label>
+        <select id="edKind"><option value="auto">automatycznie</option><option value="socket">gniazdo / włącznik</option><option value="light">oświetlenie</option><option value="garage">brama garażowa</option><option value="other">inne</option></select></div>
+      <div class="field"><label for="edIp">Adres IP w sieci domowej</label><input id="edIp" inputmode="decimal" placeholder="np. 192.168.1.50" autocapitalize="off"></div>
+      <div class="field"><label for="edVer">Wersja protokołu</label>
+        <select id="edVer"><option value="auto">auto (rozpoznaj)</option><option>3.1</option><option>3.3</option><option>3.4</option><option>3.5</option></select></div>
+      <div class="field" id="edIdWrap"><label for="edId">ID urządzenia</label><input id="edId" autocapitalize="off" spellcheck="false"></div>
+      <div class="field"><label for="edKey">Klucz lokalny (local key, 16 znaków)</label><input id="edKey" autocapitalize="off" spellcheck="false" autocomplete="off"></div>
+      <div id="edGarage" class="panel" style="padding:12px;background:var(--bg)">
+        <h3>Brama</h3>
+        <div class="field"><label for="edGMode">Sterowanie</label>
+          <select id="edGMode"><option value="two">osobno „Otwórz” i „Zamknij”</option><option value="pulse">jeden przycisk (impuls)</option></select></div>
+        <label class="chk"><input type="checkbox" id="edGInv"> Odwróć odczyt czujnika (gdy pokazuje odwrotnie)</label>
+      </div>
+      <label class="chk"><input type="checkbox" id="edHide"> Ukryj na ekranie głównym</label>
+      <div class="actions">
+        <button class="btn primary" id="edSave">Zapisz</button>
+        <button class="btn" id="edTest">Sprawdź połączenie</button>
+        <button class="btn danger" id="edDel">Usuń</button>
+      </div>
+      <p id="edMsg" hidden></p>
+    </section>
+  </div>
+</div>
+
+<!-- wklejenie devices.json -->
+<div class="sheet" id="paste" hidden>
+  <div class="app">
+    <div class="sheet-top">
+      <button class="icon-btn" data-close aria-label="Wstecz"><svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></button>
+      <h2>Wklej devices.json</h2>
+    </div>
+    <section class="panel">
+      <p>Plik <b>devices.json</b> z kreatora tinytuya (<code>python -m tinytuya wizard</code>) albo kopia z tej aplikacji.</p>
+      <div class="field"><textarea id="pasteText" placeholder='[{"name":"…","id":"…","key":"…"}]'></textarea></div>
+      <div class="actions"><button class="btn primary" id="pasteGo">Dodaj urządzenia</button></div>
+      <p id="pasteMsg" hidden></p>
+    </section>
+  </div>
+</div>
+
+<div class="toast" id="toast" hidden></div>
+
+<script>
+(function(){
+'use strict';
+
+var NATIVE = window.Tuya || null;
+function $(id){ return document.getElementById(id); }
+function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+
+/* ---------- zapis ---------- */
+var store = {
+  get: function(k, def){
+    try{
+      var raw = NATIVE ? NATIVE.load(k) : localStorage.getItem('tuyapilot:' + k);
+      return raw == null ? def : JSON.parse(raw);
+    }catch(e){ return def; }
+  },
+  set: function(k, v){
+    var raw = v == null ? null : JSON.stringify(v);
+    try{ if (NATIVE) NATIVE.save(k, raw); else if (raw == null) localStorage.removeItem('tuyapilot:' + k); else localStorage.setItem('tuyapilot:' + k, raw); }catch(e){}
+  }
+};
+
+var devices = store.get('devices', []);
+var settings = Object.assign({theme:'auto', autoRefresh:true}, store.get('settings', {}));
+var cloudCfg = Object.assign({region:'eu', accessId:'', secret:''}, store.get('cloud', {}));
+var live = {};          // id → {dps, err, kind, busy, at}
+var expanded = {};      // id → true
+var interacting = {};   // id → true, gdy użytkownik przesuwa suwak
+var net = {wifi:false, vpn:false, online:true};
+var diag = [];
+
+function saveDevices(){ store.set('devices', devices); }
+function saveSettings(){ store.set('settings', settings); }
+function L(id){ if (!live[id]) live[id] = {dps:{}, err:'', kind:'', busy:false, at:0}; return live[id]; }
+function note(s){ diag.push(new Date().toISOString().slice(11,19) + ' ' + s); if (diag.length > 200) diag.shift(); }
+
+/* ---------- most do aplikacji ---------- */
+var pending = {}, reqN = 0;
+window.__tuya = function(id, r){ var f = pending[id]; delete pending[id]; if (f) f(r); };
+function call(method){
+  var args = Array.prototype.slice.call(arguments, 1);
+  return new Promise(function(resolve){
+    if (!NATIVE || !NATIVE[method]) { resolve({ok:false, kind:'NO_APP', error:'Ta funkcja działa tylko w aplikacji na Androidzie.'}); return; }
+    var id = 'r' + (++reqN);
+    pending[id] = resolve;
+    try{ NATIVE[method].apply(NATIVE, [id].concat(args)); }
+    catch(e){ delete pending[id]; resolve({ok:false, kind:'PROTOCOL', error:String(e)}); }
+  });
+}
+function readNet(){
+  try{ if (NATIVE && NATIVE.netInfo) net = JSON.parse(NATIVE.netInfo()); }catch(e){}
+  renderNet();
+}
+
+/* ---------- opis urządzeń ---------- */
+var LIGHT_CATS = ['dj','dd','xdd','fwd','dc','tgq','tgkg','gyd','sxd','tyndj','fsd','ykq'];
+var SOCKET_CATS = ['cz','pc','kg','tdq','dlq','qjdcz','wkcz','cjkg','ckqdkg','znjdq','pc'];
+var READONLY = ['cur_power','cur_voltage','cur_current','add_ele','doorcontact_state','fault','va_temperature','va_humidity','battery_percentage'];
+var NAMES = {
+  switch_1:'Włącznik', switch_2:'Włącznik 2', switch_3:'Włącznik 3', switch_4:'Włącznik 4', switch:'Włącznik', switch_led:'Światło',
+  switch_usb1:'USB', switch_usb2:'USB 2', work_mode:'Tryb', bright_value:'Jasność', bright_value_v2:'Jasność',
+  temp_value:'Barwa bieli', temp_value_v2:'Barwa bieli', colour_data:'Kolor', colour_data_v2:'Kolor',
+  countdown_1:'Wyłącz za', countdown:'Wyłącz za', cur_power:'Moc', cur_voltage:'Napięcie', cur_current:'Prąd', add_ele:'Zużycie',
+  relay_status:'Po zaniku prądu', light_mode:'Podświetlenie', child_lock:'Blokada rodzicielska', doorcontact_state:'Czujnik bramy',
+  scene_data:'Scena', scene_data_v2:'Scena', music_data:'Muzyka', control_data:'Sterowanie', countdown_left:'Pozostało',
+  door_control_1:'Brama', tr_timecon:'Czas ruchu bramy', overload_alarm:'Alarm przeciążenia'
+};
+var ENUM_NAMES = {power_off:'wyłączone', power_on:'włączone', last:'jak przed zanikiem', memory:'jak przed zanikiem', off:'wyłączone', on:'włączone',
+  white:'biały', colour:'kolor', scene:'scena', music:'muzyka', relay:'jak włącznik', pos:'pokaż położenie', none:'brak', open:'otwórz', close:'zamknij', stop:'stop'};
+
+function mapping(dev){ return dev.mapping || {}; }
+function dpByCode(dev, codes){
+  var m = mapping(dev);
+  for (var i = 0; i < codes.length; i++) for (var dp in m) if (m[dp] && m[dp].code === codes[i]) return dp;
+  return null;
+}
+function spec(dev, dp){ return mapping(dev)[dp] || null; }
+function isWritable(sp){ if (!sp) return true; if (typeof sp.writable === 'boolean') return sp.writable; return READONLY.indexOf(sp.code) < 0; }
+function vals(sp){ return (sp && sp.values && typeof sp.values === 'object') ? sp.values : {}; }
+
+function kindOf(dev){
+  if (dev.kind && dev.kind !== 'auto') return dev.kind;
+  var c = dev.category || '';
+  if (c === 'ckmkzq' || dpByCode(dev, ['doorcontact_state','door_control_1'])) return 'garage';
+  if (LIGHT_CATS.indexOf(c) >= 0 || dpByCode(dev, ['switch_led'])) return 'light';
+  if (SOCKET_CATS.indexOf(c) >= 0 || dpByCode(dev, ['switch_1','switch'])) return 'socket';
+  var d = L(dev.id).dps;
+  if (typeof d['20'] === 'boolean' && typeof d['21'] === 'string') return 'light';
+  if (typeof d['1'] === 'boolean') return 'socket';
+  return 'other';
+}
+
+/* oświetlenie: DP z mapy albo typowe numery (v2: 20–24, v1: 1–5) */
+function lightDps(dev){
+  var d = L(dev.id).dps;
+  var r = {
+    on: dpByCode(dev, ['switch_led']), mode: dpByCode(dev, ['work_mode']),
+    bright: dpByCode(dev, ['bright_value_v2','bright_value']), temp: dpByCode(dev, ['temp_value_v2','temp_value']),
+    colour: dpByCode(dev, ['colour_data_v2','colour_data'])
+  };
+  if (!r.on) {
+    if (typeof d['20'] === 'boolean') r = {on:'20', mode:'21', bright:'22', temp:'23', colour:'24'};
+    else r = {on:'1', mode:'2', bright:'3', temp:'4', colour:'5'};
+    for (var k in r) if (!(r[k] in d) && k !== 'on') r[k] = null;
+  }
+  var v2 = r.bright ? /_v2$/.test((spec(dev, r.bright) || {}).code || '') || r.bright === '22' : true;
+  r.v2 = v2;
+  return r;
+}
+function range(dev, dp, defMin, defMax){
+  var v = vals(spec(dev, dp));
+  return {min: typeof v.min === 'number' ? v.min : defMin, max: typeof v.max === 'number' ? v.max : defMax, scale: v.scale || 0, unit: v.unit || ''};
+}
+/* kolor: v2 = HHHHSSSSVVVV (h 0–360, s i v 0–1000); v1 = rrggbb0hhhssvv (s i v 0–255) */
+function parseColour(s){
+  if (typeof s !== 'string') return null;
+  if (s.charAt(0) === '{') { try{ var j = JSON.parse(s); return {h:j.h||0, s:(j.s||0)/1000, v:(j.v||0)/1000}; }catch(e){ return null; } }
+  if (s.length === 12) return {h:parseInt(s.substr(0,4),16), s:parseInt(s.substr(4,4),16)/1000, v:parseInt(s.substr(8,4),16)/1000};
+  if (s.length === 14) return {h:parseInt(s.substr(6,4),16), s:parseInt(s.substr(10,2),16)/255, v:parseInt(s.substr(12,2),16)/255};
+  return null;
+}
+function hex(n, w){ var s = Math.max(0, Math.round(n)).toString(16); while (s.length < w) s = '0' + s; return s; }
+function hsvToRgb(h, s, v){
+  var c = v * s, x = c * (1 - Math.abs((h / 60) % 2 - 1)), m = v - c, r = 0, g = 0, b = 0;
+  if (h < 60) { r = c; g = x; } else if (h < 120) { r = x; g = c; } else if (h < 180) { g = c; b = x; }
+  else if (h < 240) { g = x; b = c; } else if (h < 300) { r = x; b = c; } else { r = c; b = x; }
+  return [(r + m) * 255, (g + m) * 255, (b + m) * 255];
+}
+function formatColour(c, v2, sample){
+  var h = Math.max(0, Math.min(360, c.h)), s = Math.max(0, Math.min(1, c.s)), v = Math.max(0.01, Math.min(1, c.v));
+  if (typeof sample === 'string' && sample.charAt(0) === '{') return JSON.stringify({h:Math.round(h), s:Math.round(s*1000), v:Math.round(v*1000)});
+  if (v2) return hex(h,4) + hex(s*1000,4) + hex(v*1000,4);
+  var rgb = hsvToRgb(h, s, v);
+  return hex(rgb[0],2) + hex(rgb[1],2) + hex(rgb[2],2) + hex(h,4) + hex(s*255,2) + hex(v*255,2);
+}
+
+/* gniazda: włączniki i pomiary */
+function switchDps(dev){
+  var m = mapping(dev), out = [];
+  for (var dp in m) {
+    var sp = m[dp];
+    if (sp && /bool/i.test(sp.type) && /^switch(_\d+|_usb\d*)?$/.test(sp.code) && isWritable(sp)) out.push(dp);
+  }
+  if (!out.length) { var d = L(dev.id).dps; if (typeof d['1'] === 'boolean' || !Object.keys(d).length) out.push('1'); }
+  return out;
+}
+function meterDps(dev){
+  var r = {power: dpByCode(dev, ['cur_power']), voltage: dpByCode(dev, ['cur_voltage']), current: dpByCode(dev, ['cur_current']), energy: dpByCode(dev, ['add_ele'])};
+  if (!Object.keys(mapping(dev)).length) {
+    var d = L(dev.id).dps;
+    if (typeof d['19'] === 'number') r = {power:'19', voltage:'20', current:'18', energy:'17' in d ? '17' : null};
+  }
+  return r;
+}
+function scaled(dev, dp, defScale){
+  var raw = L(dev.id).dps[dp];
+  if (typeof raw !== 'number') return null;
+  var sp = spec(dev, dp), sc = sp ? (vals(sp).scale || 0) : defScale;
+  return raw / Math.pow(10, sc);
+}
+function num(x, digits){ return x.toLocaleString('pl-PL', {maximumFractionDigits: digits, minimumFractionDigits: 0}); }
+
+/* brama */
+function garageDps(dev){
+  var ctl = dpByCode(dev, ['door_control_1']);
+  var trig = dpByCode(dev, ['switch_1','switch']) || (ctl ? null : '1');
+  var contact = dpByCode(dev, ['doorcontact_state']);
+  if (!contact && !Object.keys(mapping(dev)).length && typeof L(dev.id).dps['3'] === 'boolean') contact = '3';
+  return {ctl: ctl, trig: trig, contact: contact};
+}
+function garageOpen(dev){
+  var g = garageDps(dev), v = g.contact ? L(dev.id).dps[g.contact] : undefined;
+  if (typeof v !== 'boolean') return null;
+  return dev.garageInvert ? !v : v;
+}
+
+/* ---------- komunikacja z urządzeniem ---------- */
+function payload(dev){
+  return JSON.stringify({id:dev.id, ip:dev.ip || '', key:dev.key || '', version:dev.version && dev.version !== 'auto' ? dev.version : '3.3', device22:!!dev.device22, mapping:dev.mapping || {}});
+}
+var SHORT_ERR = {UNREACHABLE:'brak połączenia', TIMEOUT:'nie odpowiada', BAD_KEY:'zły klucz lokalny', KEY_OR_VERSION:'zły klucz lub wersja', BAD_VERSION:'inna wersja protokołu', NO_IP:'brak adresu IP', PROTOCOL:'błąd komunikacji', NO_APP:'podgląd w przeglądarce'};
+
+function applyResult(dev, r, merge){
+  var s = L(dev.id);
+  s.busy = false;
+  if (r.ok) {
+    var d = r.data || {};
+    if (d.dps) s.dps = merge ? Object.assign({}, s.dps, d.dps) : d.dps;
+    if (typeof d.device22 === 'boolean' && d.device22 !== !!dev.device22) { dev.device22 = d.device22; saveDevices(); }
+    s.err = ''; s.kind = ''; s.at = Date.now();
+  } else {
+    s.err = r.error || 'błąd'; s.kind = r.kind || 'PROTOCOL';
+    note(dev.name + ': ' + s.kind + ' ' + (r.detail || r.error));
+  }
+  renderCard(dev);
+  updateAway();
+}
+
+function refresh(dev){
+  if (dev.sub) return Promise.resolve();
+  var s = L(dev.id);
+  if (s.busy) return Promise.resolve();
+  if (!dev.key || dev.key.length !== 16) { s.err = 'Brak klucza lokalnego – pobierz klucze z chmury albo wpisz go w ustawieniach urządzenia.'; s.kind = 'BAD_KEY'; renderCard(dev); return Promise.resolve(); }
+  s.busy = true; renderCard(dev);
+  if (!dev.version || dev.version === 'auto') {
+    if (!dev.ip) return call('status', payload(dev)).then(function(r){ applyResult(dev, r); });
+    return call('detect', payload(dev)).then(function(r){
+      if (r.ok) { dev.version = r.data.version; dev.device22 = !!r.data.device22; saveDevices(); note(dev.name + ': wersja ' + dev.version); }
+      applyResult(dev, r);
+    });
+  }
+  return call('status', payload(dev)).then(function(r){
+    if (!r.ok && r.kind === 'KEY_OR_VERSION' && dev.versionFrom !== 'manual') {
+      // wersja mogła się zmienić po aktualizacji oprogramowania urządzenia – rozpoznaj jeszcze raz
+      return call('detect', payload(dev)).then(function(r2){
+        if (r2.ok) { dev.version = r2.data.version; dev.device22 = !!r2.data.device22; saveDevices(); }
+        applyResult(dev, r2.ok ? r2 : r);
+      });
+    }
+    applyResult(dev, r);
+  });
+}
+function setDps(dev, dps){
+  var s = L(dev.id);
+  s.busy = true;
+  // od razu pokaż nowy stan; jeśli się nie uda, odczyt go poprawi
+  s.dps = Object.assign({}, s.dps, dps);
+  renderCard(dev);
+  if (!dev.version || dev.version === 'auto') {
+    return refresh(dev).then(function(){ if (!L(dev.id).err) return setDps(dev, dps); });
+  }
+  return call('set', payload(dev), JSON.stringify(dps)).then(function(r){
+    applyResult(dev, r, true);
+    if (!r.ok) { toast(r.error || 'Nie udało się'); refresh(dev); }
+    return r;
+  });
+}
+function visibleDevices(){ return devices.filter(function(d){ return !d.hidden && !d.sub; }); }
+var refreshing = false;
+function refreshAll(){
+  readNet();
+  if (refreshing) return Promise.resolve();
+  refreshing = true;
+  $('refreshBtn').classList.add('spin');
+  return Promise.all(visibleDevices().map(refresh)).then(function(){
+    refreshing = false; $('refreshBtn').classList.remove('spin');
+  });
+}
+
+/* ---------- rysowanie ---------- */
+var ICONS = {
+  light:'<svg viewBox="0 0 24 24"><path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2V16h5v-.1c0-.8.4-1.5 1-2A6 6 0 0 0 12 3z"/></svg>',
+  socket:'<svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="4"/><circle cx="9.5" cy="12" r="1"/><circle cx="14.5" cy="12" r="1"/></svg>',
+  garage:'<svg viewBox="0 0 24 24"><path d="M3 10l9-6 9 6v10H3z"/><path d="M7 20v-7h10v7M7 16h10"/></svg>',
+  other:'<svg viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="3"/><path d="M9 12h6"/></svg>'
+};
+var PWR = '<svg viewBox="0 0 24 24"><path d="M12 3v8"/><path d="M6.3 7.5a8 8 0 1 0 11.4 0"/></svg>';
+var GROUPS = [['garage','Brama'],['light','Oświetlenie'],['socket','Gniazda i włączniki'],['other','Inne']];
+
+function render(){
+  var sec = $('sections');
+  var vis = devices.filter(function(d){ return !d.hidden; });
+  $('empty').hidden = devices.length > 0;
+  var html = '';
+  GROUPS.forEach(function(g){
+    var list = vis.filter(function(d){ return (d.sub ? 'other' : kindOf(d)) === g[0]; });
+    if (!list.length) return;
+    html += '<section><h2 class="label">' + g[1] + '</h2><div class="list">';
+    list.forEach(function(d){ html += '<div class="card" id="card-' + esc(d.id) + '" data-id="' + esc(d.id) + '"></div>'; });
+    html += '</div></section>';
+  });
+  sec.innerHTML = html;
+  vis.forEach(renderCard);
+}
+
+function subtitle(dev, kind){
+  var s = L(dev.id);
+  if (dev.sub) return {t:'Zigbee przez bramkę – nieobsługiwane', err:false};
+  if (s.err) return {t:SHORT_ERR[s.kind] || 'błąd', err:true};
+  if (!s.at) return {t: s.busy ? 'łączę…' : (dev.ip ? dev.ip : 'brak adresu IP'), err:!dev.ip && !s.busy};
+  if (kind === 'garage') {
+    var o = garageOpen(dev);
+    return {t: o === null ? 'gotowa' : (o ? 'otwarta' : 'zamknięta'), err:false};
+  }
+  if (kind === 'light') {
+    var ld = lightDps(dev), on = s.dps[ld.on];
+    if (!on) return {t:'wyłączone', err:false};
+    if (ld.mode && s.dps[ld.mode] === 'colour' && ld.colour) {
+      var cc = parseColour(s.dps[ld.colour]);
+      if (cc) return {t:'kolor · ' + Math.round(cc.v * 100) + '%', err:false};
+    }
+    var b = ld.bright != null ? s.dps[ld.bright] : null;
+    if (typeof b === 'number') { var rg = range(dev, ld.bright, ld.v2 ? 10 : 25, ld.v2 ? 1000 : 255); return {t:'włączone · ' + Math.round((b - rg.min) / (rg.max - rg.min) * 100) + '%', err:false}; }
+    return {t:'włączone', err:false};
+  }
+  if (kind === 'socket') {
+    var sw = switchDps(dev), anyOn = sw.some(function(dp){ return s.dps[dp] === true; });
+    var p = meterDps(dev), w = p.power ? scaled(dev, p.power, 1) : null;
+    return {t:(anyOn ? 'włączone' : 'wyłączone') + (w != null && anyOn ? ' · ' + num(w, 1) + ' W' : ''), err:false};
+  }
+  return {t: Object.keys(s.dps).length + ' wartości', err:false};
+}
+
+function mainSwitch(dev, kind){
+  if (kind === 'light') return lightDps(dev).on;
+  if (kind === 'socket') { var sw = switchDps(dev); return sw[0]; }
+  if (kind === 'other') { var d = L(dev.id).dps; for (var k in d) if (typeof d[k] === 'boolean' && isWritable(spec(dev, k))) return k; }
+  return null;
+}
+
+function renderCard(dev){
+  var el = $('card-' + dev.id);
+  if (!el) return;
+  if (interacting[dev.id]) return;
+  var s = L(dev.id), kind = dev.sub ? 'other' : kindOf(dev);
+  var sw = dev.sub ? null : mainSwitch(dev, kind);
+  var on = sw != null && s.dps[sw] === true;
+  if (kind === 'garage') on = garageOpen(dev) === true;
+  var st = subtitle(dev, kind);
+  el.className = 'card' + (on ? ' on' : '') + (s.err ? ' stale' : '');
+  var h = '<div class="card-head" data-act="toggleOpen">' +
+    '<div class="ico">' + (ICONS[kind] || ICONS.other) + '</div>' +
+    '<div><div class="name">' + esc(dev.name) + '</div><div class="sub' + (st.err ? ' err' : '') + '">' + esc(st.t) + '</div></div>';
+  if (sw != null && kind !== 'garage') {
+    h += '<button class="pwr' + (on ? ' on' : '') + (s.busy ? ' busy' : '') + '" data-act="power" data-dp="' + sw + '" aria-label="Włącz / wyłącz"' + (s.err && !s.at ? ' disabled' : '') + '>' + PWR + '</button>';
+  } else {
+    h += '<span></span>';
+  }
+  h += '</div>';
+  if (expanded[dev.id] || kind === 'garage') h += '<div class="card-body">' + body(dev, kind) + '</div>';
+  el.innerHTML = h;
+}
+
+function body(dev, kind){
+  var s = L(dev.id), h = '';
+  if (s.err) h += '<div class="err-box">' + esc(s.err) + (s.kind === 'UNREACHABLE' && !net.wifi && !net.vpn ? ' <a href="#" data-act="ts">Włącz Tailscale</a>' : '') + '</div>';
+  if (dev.sub) return h + '<p class="hint">To urządzenie Zigbee działa przez bramkę. Lokalne sterowanie urządzeniami Zigbee nie jest jeszcze obsługiwane.</p>';
+  if (kind === 'garage') h += garageBody(dev);
+  else if (kind === 'light') h += lightBody(dev);
+  else if (kind === 'socket') h += socketBody(dev);
+  if (expanded[dev.id]) {
+    h += dpsBody(dev);
+    h += '<div class="actions"><button class="btn small" data-act="edit">Ustawienia urządzenia</button><button class="btn small" data-act="refresh">Odśwież</button></div>';
+  }
+  return h;
+}
+
+function slider(dev, dp, label, valueText, min, max, val, cls, act){
+  return '<div class="ctl"><div class="ctl-top"><b>' + label + '</b><span data-out="' + dp + '">' + esc(valueText) + '</span></div>' +
+    '<input type="range" class="' + (cls || '') + '" min="' + min + '" max="' + max + '" step="1" value="' + val + '" data-act="' + (act || 'range') + '" data-dp="' + dp + '"></div>';
+}
+
+function lightBody(dev){
+  var s = L(dev.id), d = s.dps, ld = lightDps(dev), h = '';
+  var mode = ld.mode ? d[ld.mode] : 'white';
+  var col = ld.colour ? parseColour(d[ld.colour]) : null;
+  var modes = ld.mode && ld.colour ? (vals(spec(dev, ld.mode)).range || ['white','colour']) : null;
+  if (modes && modes.indexOf('colour') >= 0) {
+    h += '<div class="seg">' +
+      '<button class="' + (mode !== 'colour' ? 'sel' : '') + '" data-act="mode" data-v="white">Biały</button>' +
+      '<button class="' + (mode === 'colour' ? 'sel' : '') + '" data-act="mode" data-v="colour">Kolor</button></div>';
+  }
+  if (mode === 'colour' && col) {
+    h += slider(dev, ld.colour, 'Jasność', Math.round(col.v * 100) + '%', 1, 100, Math.max(1, Math.round(col.v * 100)), '', 'cv');
+    h += slider(dev, ld.colour, 'Odcień', Math.round(col.h) + '°', 0, 360, Math.round(col.h), 'r-hue', 'ch');
+    h += slider(dev, ld.colour, 'Nasycenie', Math.round(col.s * 100) + '%', 0, 100, Math.round(col.s * 100), '', 'cs');
+  } else {
+    if (ld.bright && typeof d[ld.bright] === 'number') {
+      var rb = range(dev, ld.bright, ld.v2 ? 10 : 25, ld.v2 ? 1000 : 255);
+      h += slider(dev, ld.bright, 'Jasność', Math.round((d[ld.bright] - rb.min) / (rb.max - rb.min) * 100) + '%', rb.min, rb.max, d[ld.bright], '', 'pct');
+    }
+    if (ld.temp && typeof d[ld.temp] === 'number') {
+      var rt = range(dev, ld.temp, 0, ld.v2 ? 1000 : 255);
+      h += slider(dev, ld.temp, 'Barwa bieli', tempText(d[ld.temp], rt), rt.min, rt.max, d[ld.temp], 'r-temp', 'temp');
+    }
+  }
+  return h;
+}
+function tempText(v, r){ var p = (v - r.min) / (r.max - r.min); return p < 0.33 ? 'ciepła' : (p > 0.66 ? 'zimna' : 'neutralna'); }
+
+function socketBody(dev){
+  var s = L(dev.id), d = s.dps, h = '';
+  var sw = switchDps(dev);
+  if (sw.length > 1) {
+    sw.forEach(function(dp){
+      var sp = spec(dev, dp);
+      h += '<div class="switch-row"><span>' + esc(NAMES[(sp || {}).code] || ('DP ' + dp)) + '</span><button class="tog' + (d[dp] === true ? ' on' : '') + '" data-act="bool" data-dp="' + dp + '" aria-label="przełącz"></button></div>';
+    });
+  }
+  var m = meterDps(dev), parts = [];
+  var p = m.power ? scaled(dev, m.power, 1) : null, v = m.voltage ? scaled(dev, m.voltage, 1) : null;
+  var c = m.current ? scaled(dev, m.current, 0) : null, e = m.energy ? scaled(dev, m.energy, 3) : null;
+  if (p != null) parts.push(['Moc', num(p, 1) + ' W']);
+  if (v != null) parts.push(['Napięcie', num(v, 1) + ' V']);
+  if (c != null) parts.push(['Prąd', num(c / 1000, 2) + ' A']);
+  if (e != null) parts.push(['Zużycie', num(e, 2) + ' kWh']);
+  if (parts.length) h += '<div class="meters">' + parts.map(function(x){ return '<div class="meter"><span>' + x[0] + '</span><b>' + x[1] + '</b></div>'; }).join('') + '</div>';
+  return h;
+}
+
+function garageBody(dev){
+  var s = L(dev.id), o = garageOpen(dev), g = garageDps(dev), h = '';
+  var txt = !s.at ? (s.busy ? 'Sprawdzam…' : 'Stan nieznany') : (o === null ? 'Brak czujnika' : (o ? 'Otwarta' : 'Zamknięta'));
+  h += '<div class="gate-state ' + (o === true ? 'open' : (o === false ? 'closed' : '')) + '">' + txt + '</div>';
+  if (dev.garageMode === 'pulse' || (!g.ctl && !g.contact && dev.garageMode !== 'two')) {
+    h += '<div class="holds"><button class="hold" data-act="hold" data-v="pulse"><i class="fill"></i><span>Przytrzymaj: uruchom bramę</span></button></div>';
+  } else {
+    h += '<div class="holds">' +
+      '<button class="hold" data-act="hold" data-v="open"><i class="fill"></i><span>Otwórz</span></button>' +
+      '<button class="hold" data-act="hold" data-v="close"><i class="fill"></i><span>Zamknij</span></button></div>';
+  }
+  h += '<p class="hint">Przytrzymaj przycisk przez sekundę – chroni to przed przypadkowym otwarciem w kieszeni.</p>';
+  return h;
+}
+
+function dpLabel(dev, dp){ var sp = spec(dev, dp); var c = sp ? sp.code : ''; return (NAMES[c] || c || 'DP') + ' <small>DP ' + esc(dp) + (c && NAMES[c] ? ' · ' + esc(c) : '') + '</small>'; }
+function dpsBody(dev){
+  var d = L(dev.id).dps, m = mapping(dev);
+  var keys = Object.keys(d);
+  Object.keys(m).forEach(function(k){ if (keys.indexOf(k) < 0 && /^\d+$/.test(k)) keys.push(k); });
+  keys.sort(function(a, b){ return (+a) - (+b); });
+  if (!keys.length) return '';
+  var h = '<details class="dps"><summary>Wszystkie punkty danych (' + keys.length + ')</summary>';
+  keys.forEach(function(dp){
+    var sp = spec(dev, dp), v = d[dp], w = isWritable(sp), ctl = '';
+    var type = sp ? String(sp.type).toLowerCase() : typeof v;
+    if (type === 'boolean') ctl = w ? '<button class="tog' + (v === true ? ' on' : '') + '" data-act="bool" data-dp="' + dp + '"></button>' : '<code>' + (v === true ? 'tak' : (v === false ? 'nie' : '—')) + '</code>';
+    else if (type === 'enum' && w && vals(sp).range) {
+      ctl = '<select data-act="enum" data-dp="' + dp + '">' + vals(sp).range.map(function(o){ return '<option value="' + esc(o) + '"' + (o === v ? ' selected' : '') + '>' + esc(ENUM_NAMES[o] || o) + '</option>'; }).join('') + '</select>';
+    } else if ((type === 'integer' || type === 'value') && w) {
+      var vv = vals(sp);
+      ctl = '<input type="number" data-act="int" data-dp="' + dp + '" value="' + (typeof v === 'number' ? v : '') + '"' + (typeof vv.min === 'number' ? ' min="' + vv.min + '"' : '') + (typeof vv.max === 'number' ? ' max="' + vv.max + '"' : '') + '>';
+    } else {
+      var shown = v;
+      if (typeof v === 'number' && sp) { var sc = vals(sp).scale || 0; shown = num(v / Math.pow(10, sc), sc) + (vals(sp).unit ? ' ' + vals(sp).unit : ''); }
+      ctl = '<code>' + esc(shown === undefined ? '—' : (typeof shown === 'object' ? JSON.stringify(shown) : shown)) + '</code>';
+    }
+    h += '<div class="dp"><div>' + dpLabel(dev, dp) + '</div><div>' + ctl + '</div></div>';
+  });
+  return h + '</details>';
+}
+
+/* ---------- obsługa dotyku ---------- */
+function devOf(el){ var c = el.closest('.card'); if (!c) return null; var id = c.getAttribute('data-id'); for (var i = 0; i < devices.length; i++) if (devices[i].id === id) return devices[i]; return null; }
+
+$('sections').addEventListener('click', function(e){
+  var t = e.target.closest('[data-act]'); if (!t) return;
+  var dev = devOf(t); if (!dev) return;
+  var act = t.getAttribute('data-act'), dp = t.getAttribute('data-dp'), s = L(dev.id);
+  if (act === 'toggleOpen') {
+    if (kindOf(dev) === 'garage' && !e.target.closest('.card-head')) return;
+    expanded[dev.id] = !expanded[dev.id]; renderCard(dev);
+    if (expanded[dev.id] && !s.at && !s.busy) refresh(dev);
+  } else if (act === 'power' || act === 'bool') {
+    e.stopPropagation();
+    var o = {}; o[dp] = !(s.dps[dp] === true); setDps(dev, o);
+  } else if (act === 'mode') {
+    var ld = lightDps(dev), m = {}; m[ld.mode] = t.getAttribute('data-v');
+    if (ld.on && s.dps[ld.on] !== true) m[ld.on] = true;
+    if (m[ld.mode] === 'colour' && ld.colour && !parseColour(s.dps[ld.colour])) m[ld.colour] = formatColour({h:30, s:1, v:1}, ld.v2);
+    setDps(dev, m);
+  } else if (act === 'edit') { openEditor(dev.id); }
+  else if (act === 'refresh') { refresh(dev); }
+  else if (act === 'ts') { e.preventDefault(); openTailscale(); }
+});
+
+function rangeOut(dev, t){
+  var act = t.getAttribute('data-act'), v = +t.value, out = t.closest('.ctl').querySelector('[data-out]');
+  if (!out) return;
+  if (act === 'pct') out.textContent = Math.round((v - +t.min) / (+t.max - +t.min) * 100) + '%';
+  else if (act === 'temp') out.textContent = tempText(v, {min:+t.min, max:+t.max});
+  else if (act === 'ch') out.textContent = v + '°';
+  else out.textContent = v + '%';
+}
+$('sections').addEventListener('input', function(e){
+  var t = e.target; if (t.type !== 'range') return;
+  var dev = devOf(t); if (!dev) return;
+  interacting[dev.id] = true; rangeOut(dev, t);
+});
+$('sections').addEventListener('change', function(e){
+  var t = e.target, dev = devOf(t); if (!dev) return;
+  var act = t.getAttribute('data-act'), dp = t.getAttribute('data-dp'), s = L(dev.id), o = {};
+  interacting[dev.id] = false;
+  if (t.type === 'range') {
+    if (act === 'cv' || act === 'ch' || act === 'cs') {
+      var ld = lightDps(dev), c = parseColour(s.dps[dp]) || {h:30, s:1, v:1};
+      if (act === 'cv') c.v = +t.value / 100; else if (act === 'ch') c.h = +t.value; else c.s = +t.value / 100;
+      o[dp] = formatColour(c, ld.v2, s.dps[dp]);
+    } else {
+      o[dp] = +t.value;
+    }
+    var l2 = lightDps(dev);
+    if (kindOf(dev) === 'light' && l2.on && s.dps[l2.on] !== true) o[l2.on] = true;
+    setDps(dev, o);
+  } else if (act === 'enum') { o[dp] = t.value; setDps(dev, o); }
+  else if (act === 'int') { if (t.value !== '') { o[dp] = Math.round(+t.value); setDps(dev, o); } }
+});
+
+/* przytrzymanie przycisku bramy */
+var holdTimer = null, holdBtn = null;
+function holdCancel(){ if (holdTimer) clearTimeout(holdTimer); holdTimer = null; if (holdBtn) holdBtn.classList.remove('holding'); holdBtn = null; }
+$('sections').addEventListener('pointerdown', function(e){
+  var t = e.target.closest('[data-act="hold"]'); if (!t) return;
+  e.preventDefault();
+  var dev = devOf(t); if (!dev) return;
+  holdCancel(); holdBtn = t; t.classList.add('holding');
+  try{ t.setPointerCapture(e.pointerId); }catch(err){}
+  holdTimer = setTimeout(function(){
+    holdTimer = null; t.classList.remove('holding'); t.classList.add('done');
+    if (NATIVE && NATIVE.vibrate) NATIVE.vibrate(60);
+    garageAction(dev, t.getAttribute('data-v'));
+  }, 900);
+});
+['pointerup','pointercancel','pointerleave'].forEach(function(ev){
+  $('sections').addEventListener(ev, function(e){ if (holdTimer && e.target.closest('[data-act="hold"]') === holdBtn) holdCancel(); });
+});
+$('sections').addEventListener('contextmenu', function(e){ if (e.target.closest('[data-act="hold"]')) e.preventDefault(); });
+
+var gatePoll = {};
+function garageAction(dev, what){
+  var g = garageDps(dev), o = {};
+  if (g.ctl) o[g.ctl] = what === 'close' ? 'close' : 'open';
+  else if (g.trig) o[g.trig] = what !== 'close';
+  else { toast('Brak punktu sterowania bramą – sprawdź ustawienia urządzenia'); return; }
+  toast(what === 'close' ? 'Zamykam bramę…' : (what === 'open' ? 'Otwieram bramę…' : 'Uruchamiam bramę…'));
+  setDps(dev, o).then(function(r){
+    if (!r || !r.ok) return;
+    // śledź czujnik, aż brama skończy ruch
+    var n = 0; clearInterval(gatePoll[dev.id]);
+    gatePoll[dev.id] = setInterval(function(){ if (++n > 20) { clearInterval(gatePoll[dev.id]); return; } refresh(dev); }, 2500);
+  });
+}
+
+/* ---------- sieć ---------- */
+function renderNet(){
+  var el = $('net'), t = $('netText');
+  el.className = 'net ' + (net.vpn ? 'vpn' : (net.wifi ? 'home' : 'away'));
+  t.textContent = net.vpn ? 'VPN' : (net.wifi ? 'Wi-Fi' : 'poza siecią');
+  $('netDetail').textContent = 'Teraz: ' + (net.wifi ? 'Wi-Fi' : 'bez Wi-Fi') + (net.vpn ? ', VPN włączony' : ', VPN wyłączony') + (net.ip ? ' (adres telefonu ' + net.ip + ')' : '') + '.';
+  updateAway();
+}
+function updateAway(){
+  var vis = visibleDevices();
+  var unreachable = vis.length && vis.every(function(d){ var s = L(d.id); return s.kind === 'UNREACHABLE' || s.kind === 'TIMEOUT'; });
+  $('awayBanner').hidden = !(NATIVE && !net.vpn && (!net.wifi || unreachable) && vis.length);
+}
+function openTailscale(){ if (NATIVE && NATIVE.openTailscale) NATIVE.openTailscale(); else window.open('https://tailscale.com/download/android'); }
+$('openTs').onclick = openTailscale;
+$('openTs2').onclick = openTailscale;
+
+/* ---------- motyw ---------- */
+function nativeNight(){ try{ return (NATIVE && NATIVE.isNight) ? !!NATIVE.isNight() : null; }catch(e){ return null; } }
+function effectiveTheme(){
+  if (settings.theme === 'dark' || settings.theme === 'light') return settings.theme;
+  var n = nativeNight(); if (n !== null) return n ? 'dark' : 'light';
+  return window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
+function applyTheme(){
+  var eff = effectiveTheme();
+  if (settings.theme === 'auto' && nativeNight() === null) document.documentElement.removeAttribute('data-theme');
+  else document.documentElement.setAttribute('data-theme', eff);
+  try{ if (NATIVE && NATIVE.setDark) NATIVE.setDark(eff === 'dark'); }catch(e){}
+  Array.prototype.forEach.call(document.querySelectorAll('#themeChips .chip'), function(c){ c.classList.toggle('sel', c.getAttribute('data-t') === settings.theme); });
+}
+$('themeChips').addEventListener('click', function(e){ var c = e.target.closest('.chip'); if (!c) return; settings.theme = c.getAttribute('data-t'); saveSettings(); applyTheme(); });
+
+/* ---------- ekrany ---------- */
+var openSheets = [];
+function openSheet(id){ $(id).hidden = false; $(id).scrollTop = 0; if (openSheets.indexOf(id) < 0) openSheets.push(id); document.body.classList.add('locked'); }
+function closeSheet(id){ $(id).hidden = true; openSheets = openSheets.filter(function(x){ return x !== id; }); if (!openSheets.length) document.body.classList.remove('locked'); if (id === 'settings' || id === 'editor' || id === 'paste') render(); if (id === 'editor' && !$('settings').hidden) renderDevList(); }
+window.__back = function(){ if (openSheets.length) { closeSheet(openSheets[openSheets.length - 1]); return true; } return false; };
+Array.prototype.forEach.call(document.querySelectorAll('[data-close]'), function(b){ b.onclick = function(){ closeSheet(b.closest('.sheet').id); }; });
+document.addEventListener('click', function(e){
+  var a = e.target.closest('[data-url]');
+  if (a) { e.preventDefault(); var u = a.getAttribute('data-url'); if (NATIVE && NATIVE.openUrl) NATIVE.openUrl(u); else window.open(u); return; }
+  var o = e.target.closest('[data-open]');
+  if (o) {
+    var w = o.getAttribute('data-open');
+    if (w === 'cloud') openSettings();
+    else if (w === 'manual') openEditor(null);
+    else if (w === 'paste') { $('pasteMsg').hidden = true; openSheet('paste'); }
+  }
+});
+
+function openSettings(){
+  $('cRegion').value = cloudCfg.region || 'eu'; $('cId').value = cloudCfg.accessId || ''; $('cSecret').value = cloudCfg.secret || '';
+  $('autoRefresh').checked = settings.autoRefresh !== false;
+  $('cMsg').hidden = true; $('scanMsg').hidden = true;
+  readNet(); renderDevList(); applyTheme();
+  try{ $('ver').textContent = 'Tuya Pilot ' + (NATIVE && NATIVE.version ? NATIVE.version() : ''); }catch(e){}
+  openSheet('settings');
+}
+$('settingsBtn').onclick = openSettings;
+$('refreshBtn').onclick = function(){ refreshAll(); };
+$('autoRefresh').onchange = function(){ settings.autoRefresh = this.checked; saveSettings(); schedule(); };
+
+function renderDevList(){
+  if (!devices.length) { $('devList').innerHTML = '<p>Brak urządzeń.</p>'; return; }
+  $('devList').innerHTML = devices.map(function(d){
+    var info = [ {socket:'gniazdo', light:'światło', garage:'brama', other:'inne'}[d.sub ? 'other' : kindOf(d)], d.ip || 'brak IP', d.version && d.version !== 'auto' ? 'v' + d.version : 'wersja auto' ];
+    if (d.hidden) info.push('ukryte'); if (d.sub) info.push('Zigbee');
+    return '<div class="dev-row"><div><div class="name">' + esc(d.name) + '</div><div class="sub">' + esc(info.join(' · ')) + '</div></div>' +
+      '<button class="btn small" data-edit="' + esc(d.id) + '">Edytuj</button></div>';
+  }).join('');
+}
+$('devList').addEventListener('click', function(e){ var b = e.target.closest('[data-edit]'); if (b) openEditor(b.getAttribute('data-edit')); });
+
+/* import z chmury */
+function msg(el, text, bad){ el.hidden = false; el.textContent = text; el.style.color = bad ? 'var(--bad)' : ''; }
+$('cImport').onclick = function(){
+  var region = $('cRegion').value, id = $('cId').value.trim(), sec = $('cSecret').value.trim();
+  if (!id || !sec) { msg($('cMsg'), 'Wpisz Access ID i Access Secret.', true); return; }
+  cloudCfg = {region:region, accessId:id, secret:sec}; store.set('cloud', cloudCfg);
+  var btn = this; btn.disabled = true; msg($('cMsg'), 'Pobieram listę urządzeń…');
+  call('cloudImport', region, id, sec).then(function(r){
+    btn.disabled = false;
+    if (!r.ok) { msg($('cMsg'), r.error || 'Nie udało się.', true); note('chmura: ' + r.error); return; }
+    var res = mergeDevices(r.data, 'cloud');
+    msg($('cMsg'), 'Gotowe: ' + res.added + ' nowych, ' + res.updated + ' zaktualizowanych. ' + (net.wifi ? 'Szukam adresów w sieci…' : 'Połącz się z domowym Wi-Fi i użyj „Szukaj urządzeń”, żeby uzupełnić adresy IP.'));
+    renderDevList();
+    if (net.wifi) scan(true);
+  });
+};
+
+function mergeDevices(list, from){
+  var added = 0, updated = 0;
+  list.forEach(function(n){
+    if (!n || !n.id) return;
+    var key = n.key || n.local_key || '';
+    var ex = null; for (var i = 0; i < devices.length; i++) if (devices[i].id === n.id) ex = devices[i];
+    var mapping = n.mapping && typeof n.mapping === 'object' ? n.mapping : null;
+    if (ex) {
+      if (key) ex.key = key;
+      if (!ex.customName && n.name) ex.name = n.name;
+      if (mapping && Object.keys(mapping).length) ex.mapping = mapping;
+      ['category','productId','productName','model'].forEach(function(k){ if (n[k]) ex[k] = n[k]; });
+      if (n.product_id) ex.productId = n.product_id;
+      if (n.ip && /^\d+\.\d+\.\d+\.\d+$/.test(n.ip) && from !== 'cloud') ex.ip = n.ip;
+      if (n.version && from !== 'cloud') ex.version = String(n.version);
+      if (typeof n.sub === 'boolean') ex.sub = n.sub;
+      updated++;
+    } else {
+      devices.push({
+        id:n.id, name:n.name || n.id, key:key, ip:(from !== 'cloud' && n.ip && /^\d+\.\d+\.\d+\.\d+$/.test(n.ip)) ? n.ip : '',
+        version: (from !== 'cloud' && n.version) ? String(n.version) : 'auto',
+        category:n.category || '', productId:n.productId || n.product_id || '', productName:n.productName || n.product_name || '',
+        model:n.model || '', sub:!!n.sub, mapping:mapping || {}, kind:n.kind || 'auto', hidden:!!n.hidden,
+        garageMode:n.garageMode || 'two', garageInvert:!!n.garageInvert, customName:!!n.customName
+      });
+      added++;
+    }
+  });
+  saveDevices();
+  return {added:added, updated:updated};
+}
+
+/* wyszukiwanie w sieci */
+function scan(silent){
+  readNet();
+  var el = $('scanMsg');
+  if (!net.wifi) { if (!silent) msg(el, 'Wyszukiwanie działa tylko w domowym Wi-Fi.', true); return Promise.resolve(); }
+  if (!silent) msg(el, 'Szukam przez 8 sekund…');
+  $('scanBtn').disabled = true;
+  return call('scan', 8000).then(function(r){
+    $('scanBtn').disabled = false;
+    if (!r.ok) { msg(el, r.error || 'Błąd wyszukiwania', true); return; }
+    var known = 0, other = 0;
+    r.data.forEach(function(f){
+      var d = null; for (var i = 0; i < devices.length; i++) if (devices[i].id === f.id) d = devices[i];
+      if (!d) { other++; return; }
+      known++;
+      if (f.ip) d.ip = f.ip;
+      if (f.version && d.versionFrom !== 'manual') { if (d.version !== f.version) d.device22 = false; d.version = f.version; d.versionFrom = 'scan'; }
+    });
+    saveDevices();
+    var wifiDevs = devices.filter(function(d){ return !d.sub; }).length;
+    msg(el, 'Znaleziono ' + known + ' z ' + wifiDevs + ' urządzeń' + (other ? ' oraz ' + other + ' innych urządzeń Tuya bez klucza' : '') + '.' +
+      (known < wifiDevs ? ' Brakującym wpisz adres IP ręcznie (sprawdzisz go w routerze) i ustaw w routerze stały adres (rezerwacja DHCP).' : ''));
+    renderDevList(); render(); refreshAll();
+  });
+}
+$('scanBtn').onclick = function(){ scan(false); };
+
+/* edycja */
+var editing = null;
+function openEditor(id){
+  editing = id;
+  var d = null; for (var i = 0; i < devices.length; i++) if (devices[i].id === id) d = devices[i];
+  d = d || {id:'', name:'', ip:'', key:'', version:'auto', kind:'auto', garageMode:'two'};
+  $('edTitle').textContent = id ? 'Urządzenie' : 'Nowe urządzenie';
+  $('edName').value = d.name || ''; $('edKind').value = d.kind || 'auto'; $('edIp').value = d.ip || '';
+  $('edVer').value = d.version || 'auto'; $('edId').value = d.id || ''; $('edKey').value = d.key || '';
+  $('edId').disabled = !!id; $('edDel').hidden = !id;
+  $('edGMode').value = d.garageMode || 'two'; $('edGInv').checked = !!d.garageInvert; $('edHide').checked = !!d.hidden;
+  $('edMsg').hidden = true;
+  updateEdGarage();
+  openSheet('editor');
+}
+function updateEdGarage(){
+  var k = $('edKind').value, d = findDev(editing);
+  $('edGarage').hidden = !(k === 'garage' || (k === 'auto' && d && kindOf(d) === 'garage'));
+}
+$('edKind').onchange = updateEdGarage;
+function findDev(id){ for (var i = 0; i < devices.length; i++) if (devices[i].id === id) return devices[i]; return null; }
+function editorValues(){
+  return {
+    name:$('edName').value.trim(), kind:$('edKind').value, ip:$('edIp').value.trim(), version:$('edVer').value,
+    id:$('edId').value.trim(), key:$('edKey').value, garageMode:$('edGMode').value, garageInvert:$('edGInv').checked, hidden:$('edHide').checked
+  };
+}
+function validate(v){
+  if (!v.id) return 'Podaj ID urządzenia.';
+  if (v.key.length !== 16) return 'Klucz lokalny musi mieć dokładnie 16 znaków (teraz: ' + v.key.length + ').';
+  if (v.ip && !/^\d{1,3}(\.\d{1,3}){3}$/.test(v.ip)) return 'Adres IP wygląda niepoprawnie.';
+  if (!editing && findDev(v.id)) return 'Urządzenie o tym ID już jest na liście.';
+  return null;
+}
+function applyEditor(){
+  var v = editorValues(), err = validate(v);
+  if (err) { msg($('edMsg'), err, true); return null; }
+  var d = findDev(editing);
+  if (!d) { d = {id:v.id, mapping:{}, category:'', sub:false}; devices.push(d); editing = v.id; }
+  if (v.name && v.name !== d.name) d.customName = true;
+  d.name = v.name || d.name || v.id;
+  if (d.version !== v.version) { d.versionFrom = v.version === 'auto' ? '' : 'manual'; d.device22 = false; }
+  d.kind = v.kind; d.ip = v.ip; d.version = v.version; d.key = v.key;
+  d.garageMode = v.garageMode; d.garageInvert = v.garageInvert; d.hidden = v.hidden;
+  saveDevices();
+  return d;
+}
+$('edSave').onclick = function(){ var d = applyEditor(); if (d) { closeSheet('editor'); toast('Zapisano'); refresh(d); } };
+$('edTest').onclick = function(){
+  var d = applyEditor(); if (!d) return;
+  $('edId').disabled = true; $('edDel').hidden = false;
+  msg($('edMsg'), 'Łączę…');
+  refresh(d).then(function(){
+    var s = L(d.id);
+    if (s.err) msg($('edMsg'), s.err, true);
+    else msg($('edMsg'), 'Połączenie działa (wersja ' + d.version + '), odczytano ' + Object.keys(s.dps).length + ' wartości.');
+    $('edVer').value = d.version || 'auto';
+  });
+};
+$('edDel').onclick = function(){
+  var d = findDev(editing); if (!d) return;
+  if (this.getAttribute('data-sure') !== '1') { this.setAttribute('data-sure', '1'); this.textContent = 'Na pewno usunąć?'; var b = this; setTimeout(function(){ b.removeAttribute('data-sure'); b.textContent = 'Usuń'; }, 3000); return; }
+  this.removeAttribute('data-sure'); this.textContent = 'Usuń';
+  devices = devices.filter(function(x){ return x.id !== d.id; }); delete live[d.id]; saveDevices();
+  closeSheet('editor'); toast('Usunięto');
+};
+
+/* wklejenie */
+$('pasteGo').onclick = function(){
+  var t = $('pasteText').value.trim();
+  var list;
+  try{ list = JSON.parse(t); }catch(e){ msg($('pasteMsg'), 'To nie jest poprawny JSON.', true); return; }
+  if (list && !Array.isArray(list) && Array.isArray(list.devices)) list = list.devices;
+  if (!Array.isArray(list)) { msg($('pasteMsg'), 'Oczekiwano listy urządzeń.', true); return; }
+  var res = mergeDevices(list, 'file');
+  msg($('pasteMsg'), 'Dodano ' + res.added + ', zaktualizowano ' + res.updated + '.');
+  $('pasteText').value = '';
+};
+
+/* kopia, diagnostyka */
+$('backupBtn').onclick = function(){
+  var t = JSON.stringify(devices, null, 1);
+  if (NATIVE && NATIVE.share) NATIVE.share(t); else { try{ navigator.clipboard.writeText(t); toast('Skopiowano'); }catch(e){} }
+};
+$('diagBtn').onclick = function(){
+  var info = {app:(NATIVE && NATIVE.version) ? NATIVE.version() : 'web', net:net, devices:devices.map(function(d){
+    var s = L(d.id); return {name:d.name, id:d.id.slice(0, 6) + '…', ip:d.ip, version:d.version, device22:!!d.device22, category:d.category, kind:kindOf(d), err:s.kind, dps:s.dps};
+  }), log:diag.slice(-80)};
+  var t = JSON.stringify(info, null, 1);
+  if (NATIVE && NATIVE.share) NATIVE.share(t); else { try{ navigator.clipboard.writeText(t); toast('Skopiowano'); }catch(e){} }
+};
+$('wipeBtn').onclick = function(){
+  if (this.getAttribute('data-sure') !== '1') { this.setAttribute('data-sure', '1'); this.textContent = 'Na pewno? Stuknij jeszcze raz'; var b = this; setTimeout(function(){ b.removeAttribute('data-sure'); b.textContent = 'Usuń wszystkie urządzenia'; }, 3000); return; }
+  devices = []; live = {}; saveDevices(); renderDevList(); toast('Usunięto wszystkie urządzenia');
+  this.removeAttribute('data-sure'); this.textContent = 'Usuń wszystkie urządzenia';
+};
+
+/* ---------- komunikaty ---------- */
+var toastT = null;
+function toast(t){ var el = $('toast'); el.textContent = t; el.hidden = false; clearTimeout(toastT); toastT = setTimeout(function(){ el.hidden = true; }, 2600); }
+
+/* ---------- cykl życia ---------- */
+var timer = null, paused = false;
+function schedule(){
+  clearInterval(timer); timer = null;
+  if (settings.autoRefresh !== false && !paused) timer = setInterval(function(){ if (!openSheets.length) refreshAll(); }, 20000);
+}
+window.__pause = function(){ paused = true; schedule(); };
+window.__resume = function(){ paused = false; schedule(); refreshAll(); };
+document.addEventListener('visibilitychange', function(){ if (document.hidden) window.__pause(); else window.__resume(); });
+
+applyTheme();
+readNet();
+render();
+schedule();
+if (devices.length) {
+  // w domu przy brakujących adresach najpierw krótkie wyszukiwanie
+  var noIp = devices.some(function(d){ return !d.sub && !d.ip; });
+  if (net.wifi && noIp) scan(true); else refreshAll();
+}
+window.__app = {devices:function(){ return devices; }, live:live, render:render, refreshAll:refreshAll, mergeDevices:mergeDevices, openSettings:openSettings, openEditor:openEditor};
+})();
+</script>
+</body>
+</html>

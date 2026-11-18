@@ -1,0 +1,63 @@
+name: Android APK
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-apk
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # Rdzeń protokołu testowany z udawanymi urządzeniami opartymi o bibliotekę tinytuya
+      - name: Testy rdzenia Tuya
+        run: |
+          pip install --quiet tinytuya cryptography
+          mkdir -p build/core
+          javac -encoding UTF-8 -d build/core android/app/src/main/java/pl/zooolw/tuyapilot/core/*.java tests/CoreTests.java
+          java -Dstdout.encoding=UTF-8 -cp build/core CoreTests tests
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+
+      - name: Zbuduj APK
+        working-directory: android
+        run: gradle assembleRelease --no-daemon --stacktrace
+
+      - name: Nazwij plik
+        run: cp android/app/build/outputs/apk/release/app-release.apk tuya-pilot.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tuya-pilot-apk
+          path: tuya-pilot.apk
+
+      - name: Wystaw do pobrania (Releases)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete apk --yes --cleanup-tag || true
+          gh release create apk tuya-pilot.apk \
+            --target "${{ github.sha }}" \
+            --title "Tuya Pilot na Androida (wersja 1.0.${{ github.run_number }})" \
+            --notes "Plik APK do zainstalowania w telefonie z Androidem 8.0 lub nowszym. Bezpośredni link: https://github.com/${{ github.repository }}/releases/latest/download/tuya-pilot.apk" \
+            --latest

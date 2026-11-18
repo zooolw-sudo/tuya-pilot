@@ -1,0 +1,12 @@
+*.iml
+.gradle/
+local.properties
+.idea/
+.DS_Store
+build/
+**/build/
+captures/
+__pycache__/
+# kopie z aplikacji zawierają klucze lokalne
+devices.json
+tuya-pilot-kopia*.json

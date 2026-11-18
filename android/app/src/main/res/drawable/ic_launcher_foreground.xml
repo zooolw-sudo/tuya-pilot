@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Ikona: dom z symbolem zasilania, w kolorze akcentu aplikacji -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:pathData="M30,52 L54,33 L78,52 L78,76 L30,76 Z"
+        android:strokeColor="#F0A53A"
+        android:strokeWidth="5"
+        android:strokeLineJoin="round"
+        android:fillColor="#00000000" />
+    <path
+        android:pathData="M54,47 L54,58"
+        android:strokeColor="#F0A53A"
+        android:strokeWidth="5"
+        android:strokeLineCap="round" />
+    <path
+        android:pathData="M46.5,52.5 A10.5,10.5 0 1,0 61.5,52.5"
+        android:strokeColor="#F0A53A"
+        android:strokeWidth="5"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000" />
+</vector>
